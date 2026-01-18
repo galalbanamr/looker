@@ -290,10 +290,9 @@ export class WhatsappWebService implements OnModuleInit {
     }): Promise<boolean> {
         const message = `🏆 *${details.title}*
 
-${details.whatItIs}
-${details.deadline ? `📅 Deadline: ${details.deadline}` : ''}
-
-🔗 ${details.link}
+📝 ${details.whatItIs}
+📅 Registration Date: ${details.deadline || 'See link'}
+🔗 Registration Link: ${details.link}
 
 _Sent by Looker_`;
 

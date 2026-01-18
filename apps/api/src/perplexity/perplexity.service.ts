@@ -56,11 +56,11 @@ export class PerplexityService {
                     messages: [
                         {
                             role: 'system',
-                            content: `You are a research assistant. Search for current and upcoming competitions, hackathons, events, grants, and opportunities. Return results as JSON array with format: [{"title": "...", "url": "...", "snippet": "...", "source": "..."}]. Focus on recent and upcoming events with real URLs.`
+                            content: `You are a research assistant. Search for current and upcoming competitions, hackathons, events, grants, and opportunities. Return results as JSON array with format: [{"title": "...", "url": "...", "snippet": "...", "source": "..."}]. Focus on events specifically in or eligible for residents of ${location}. Exclude past events.`
                         },
                         {
                             role: 'user',
-                            content: `Find competitions, hackathons, and events matching: "${searchQuery}". Return up to 10 results with actual URLs.`
+                            content: `Find competitions, hackathons, and events matching: "${searchQuery}". Ensure results are relevant to ${location}. Return up to 10 results with actual URLs.`
                         }
                     ],
                     max_tokens: 2000,
