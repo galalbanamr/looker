@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-    title: 'Competition Monitor - Never Miss an Opportunity',
-    description: 'Monitor the web for competitions, hackathons, and events. Get instant WhatsApp notifications when new opportunities match your interests.',
+    title: 'Looker - Never Miss an Opportunity',
+    description: 'Looker monitors the web for competitions, hackathons, and events. Get instant WhatsApp notifications when new opportunities match your interests.',
 };
 
 export default function RootLayout({

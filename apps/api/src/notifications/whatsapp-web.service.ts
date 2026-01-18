@@ -79,7 +79,7 @@ export class WhatsappWebService implements OnModuleInit {
                     keys: makeCacheableSignalKeyStore(state.keys, this.logger as any),
                 },
                 printQRInTerminal: true, // Enable terminal QR for debugging
-                browser: ['CompetitionMonitor', 'Chrome', '120.0.0'],
+                browser: ['Looker', 'Chrome', '120.0.0'],
                 syncFullHistory: false,
             });
 
@@ -212,7 +212,7 @@ export class WhatsappWebService implements OnModuleInit {
                     keys: makeCacheableSignalKeyStore(state.keys, baileysLogger),
                 },
                 printQRInTerminal: true,
-                browser: ['CompetitionMonitor', 'Chrome', '120.0.0'],
+                browser: ['Looker', 'Chrome', '120.0.0'],
                 syncFullHistory: false,
             });
 
@@ -295,7 +295,7 @@ ${details.deadline ? `📅 Deadline: ${details.deadline}` : ''}
 
 🔗 ${details.link}
 
-_Sent by Competition Monitor_`;
+_Sent by Looker_`;
 
         return this.sendMessage(phone, message);
     }

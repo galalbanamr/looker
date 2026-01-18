@@ -110,7 +110,7 @@ export default function AdminPage() {
             const res = await fetch(`${API_URL}/whatsapp/test`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: pairingPhone, message: 'Test message from Competition Monitor' }),
+                body: JSON.stringify({ phone: pairingPhone, message: 'Test message from Looker' }),
             });
             const data = await res.json();
             setMessage(data.success ? '✅ Test message sent!' : '❌ Failed to send test message');
@@ -142,7 +142,7 @@ export default function AdminPage() {
                     <div className="text-center mb-8">
                         <span className="text-4xl">🔐</span>
                         <h1 className="text-2xl font-bold mt-4">Admin Panel</h1>
-                        <p className="text-zinc-400 mt-2">Competition Monitor</p>
+                        <p className="text-zinc-400 mt-2">Looker</p>
                     </div>
 
                     <form onSubmit={handleLogin} className="card">
