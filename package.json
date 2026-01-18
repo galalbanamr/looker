@@ -1,0 +1,28 @@
+{
+    "name": "competition-monitor",
+    "version": "0.0.1",
+    "private": true,
+    "workspaces": [
+        "apps/*",
+        "packages/*"
+    ],
+    "scripts": {
+        "dev": "concurrently \"npm run dev -w apps/web\" \"npm run dev -w apps/api\"",
+        "dev:web": "npm run dev -w apps/web",
+        "dev:api": "npm run dev -w apps/api",
+        "build": "npm run build -ws --if-present",
+        "lint": "npm run lint -ws --if-present",
+        "test": "npm run test -ws --if-present",
+        "db:migrate": "npm run prisma:migrate -w apps/api",
+        "db:generate": "npm run prisma:generate -w apps/api",
+        "db:studio": "npm run prisma:studio -w apps/api",
+        "db:seed": "npm run seed -w apps/api"
+    },
+    "devDependencies": {
+        "concurrently": "^8.2.2",
+        "typescript": "^5.3.3"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}

@@ -1,0 +1,121 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(cuid())
+  phone           String    @unique
+  name            String?
+  email           String?
+  timezone        String    @default("Asia/Qatar")
+  whatsappOptIn   Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  profiles        SearchProfile[]
+  notifications   NotificationLog[]
+  conversations   WhatsAppConversation[]
+}
+
+model SearchProfile {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name              String
+  keywords          String[]  // Array of search queries
+  location          String    @default("Qatar, Doha")
+  frequencyPerDay   Int       @default(3)
+  quietHoursStart   Int?      // Hour (0-23) to stop notifications
+  quietHoursEnd     Int?      // Hour (0-23) to resume notifications
+  maxResultsPerRun  Int       @default(10)
+  notificationMode  String    @default("immediate") // "immediate" | "digest"
+  digestTime        String?   // "HH:MM" for daily digest
+  whatsappNumber    String
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  items             DiscoveredItem[]
+  runs              SearchRun[]
+
+  @@index([userId, isActive])
+}
+
+model DiscoveredItem {
+  id                 String    @id @default(cuid())
+  profileId          String
+  profile            SearchProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  urlHash            String    // SHA256 of canonicalized URL
+  titleHash          String    // SHA256 of normalized title
+  url                String
+  title              String
+  whatItIs           String    // 1-2 line description
+  deadline           String?   // Date string or null
+  deadlineConfidence String?   // "high" | "medium" | "low"
+  location           String?
+  eligibility        String?
+  sourceDomain       String
+  notes              String?
+  rawJson            Json?
+  notified           Boolean   @default(false)
+  notifiedAt         DateTime?
+  digestBatchId      String?   // Groups items for daily digest
+  discoveredAt       DateTime  @default(now())
+
+  @@unique([profileId, urlHash])
+  @@index([profileId, notified])
+  @@index([discoveredAt])
+}
+
+model SearchRun {
+  id           String    @id @default(cuid())
+  profileId    String
+  profile      SearchProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+  status       String    @default("running") // running, completed, failed
+  query        String
+  newItemCount Int       @default(0)
+  totalResults Int       @default(0)
+  error        String?
+
+  @@index([profileId, startedAt])
+}
+
+// WhatsApp Conversation tracking for 24-hour window
+model WhatsAppConversation {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  waUserPhone     String    // E164 format
+  lastInboundAt   DateTime?
+  lastOutboundAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([userId])
+  @@index([waUserPhone])
+}
+
+// Notification log for all channels
+model NotificationLog {
+  id                String   @id @default(cuid())
+  channel           String   @default("WHATSAPP")
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  toPhone           String
+  messageType       String   @default("TEXT")
+  messageBody       String?
+  status            String   @default("QUEUED") // QUEUED, SENT, DELIVERED, READ, FAILED
+  providerMessageId String?
+  errorJson         Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
