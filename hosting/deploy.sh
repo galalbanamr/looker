@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Competition Monitor - Deployment Script for Oracle Cloud
+# Competition Monitor - Deployment Script for Oracle Cloud & Local
 # Usage: ./deploy.sh [command]
 # Commands: setup, deploy, update, logs, backup, restart
 
@@ -34,7 +34,7 @@ check_env() {
 setup() {
     log_info "Setting up the environment..."
     
-    # Create SSL directory
+    # Create SSL directory (optional if using tunnel)
     mkdir -p "$SCRIPT_DIR/ssl"
     
     # Check for environment file
@@ -64,8 +64,11 @@ deploy() {
     docker compose -f "$COMPOSE_FILE" exec -T api npx prisma migrate deploy
     
     log_info "Deployment complete!"
-    log_info "Frontend: http://$(curl -s ifconfig.me):3000"
-    log_info "API: http://$(curl -s ifconfig.me):4100"
+    log_info "----------------------------------------"
+    log_info "Dashboard: https://car-scan.qa"
+    log_info "API:       https://api.car-scan.qa"
+    log_info "Tunnel:    Check logs with ./deploy.sh logs tunnel"
+    log_info "----------------------------------------"
 }
 
 # Update the application (pull latest code and redeploy)
@@ -159,7 +162,7 @@ usage() {
     echo ""
     echo "Examples:"
     echo "  $0 deploy"
-    echo "  $0 logs api"
+    echo "  $0 logs tunnel"
     echo "  $0 restart web"
 }
 

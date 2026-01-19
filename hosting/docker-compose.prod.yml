@@ -74,13 +74,13 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=http://api:4100
+      - NEXT_PUBLIC_API_URL=https://api.car-scan.qa
     depends_on:
       - api
     networks:
       - cm-network
 
-  # Nginx Reverse Proxy (optional - for SSL and single port)
+  # Nginx Reverse Proxy
   nginx:
     image: nginx:alpine
     container_name: cm-nginx
@@ -94,6 +94,17 @@ services:
     depends_on:
       - web
       - api
+    networks:
+      - cm-network
+
+  # Cloudflare Tunnel
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: cm-tunnel
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
     networks:
       - cm-network
 
