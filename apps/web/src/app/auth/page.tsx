@@ -4,7 +4,9 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4100';
+// In production (Docker), NEXT_PUBLIC_API_URL is set to 'RELATIVE' for relative paths
+// In development, fallback to localhost:4100
+const API_URL = process.env.NEXT_PUBLIC_API_URL === 'RELATIVE' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4100');
 
 export default function AuthPage() {
     const router = useRouter();

@@ -20,7 +20,12 @@ COPY tsconfig.json ./
 WORKDIR /app/apps/api
 RUN npx prisma generate
 
+# Build the shared package
+WORKDIR /app/packages/shared
+RUN npm run build
+
 # Build the API
+WORKDIR /app/apps/api
 RUN npm run build
 
 # Production stage
@@ -35,10 +40,26 @@ COPY packages/shared/package*.json ./packages/shared/
 
 RUN npm ci --workspace=api --workspace=@competition-monitor/shared --omit=dev
 
+# Install OpenSSL for Prisma
+# Install OpenSSL for Prisma and Chromium for WhatsApp
+RUN apk add --no-cache \
+    openssl \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
+
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
 # Copy built files
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
-COPY --from=builder /app/apps/api/node_modules/.prisma ./apps/api/node_modules/.prisma
+# Prisma client is likely in root node_modules due to hoisting
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 
 # Create directory for WhatsApp sessions
@@ -54,4 +75,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:4100/health || exit 1
 
 # Start the API
-CMD ["node", "dist/src/main.js"]
+CMD ["node", "dist/main.js"]

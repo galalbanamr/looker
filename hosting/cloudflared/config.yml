@@ -1,0 +1,10 @@
+tunnel: be2b859c-4196-4b3c-b24d-a633ce65c21a
+credentials-file: /etc/cloudflared/cred.json
+protocol: http2
+
+ingress:
+  - hostname: car-scan.qa
+    service: http://cm-nginx:80
+  - hostname: api.car-scan.qa
+    service: http://cm-nginx:80
+  - service: http_status:404

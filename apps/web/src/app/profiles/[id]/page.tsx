@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4100';
+// In production (Docker), NEXT_PUBLIC_API_URL is set to 'RELATIVE' for relative paths
+// In development, fallback to localhost:4100
+const API_URL = process.env.NEXT_PUBLIC_API_URL === 'RELATIVE' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4100');
 
 interface Profile {
     id: string;
@@ -49,7 +51,7 @@ export default function ProfileDetailPage() {
 
     const fetchProfile = async () => {
         try {
-            const res = await fetch(`${API_URL}/profiles/${profileId}`, { credentials: 'include' });
+            const res = await fetch(`${API_URL}/profiles/get/${profileId}`, { credentials: 'include' });
             if (res.ok) {
                 const data = await res.json();
                 setProfile(data);
@@ -94,7 +96,7 @@ export default function ProfileDetailPage() {
         if (!confirm('Are you sure you want to delete this profile?')) return;
 
         try {
-            await fetch(`${API_URL}/profiles/${profileId}`, {
+            await fetch(`${API_URL}/profiles/delete/${profileId}`, {
                 method: 'DELETE',
                 credentials: 'include',
             });

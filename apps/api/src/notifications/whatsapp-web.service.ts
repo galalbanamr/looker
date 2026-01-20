@@ -57,12 +57,15 @@ export class WhatsappWebService implements OnModuleInit {
             this.socket = null;
         }
 
-        // Clean existing session
+        // Clean existing session (clear contents, not directory itself - it may be a Docker volume)
         if (fs.existsSync(this.authFolder)) {
-            fs.rmSync(this.authFolder, { recursive: true });
+            const files = fs.readdirSync(this.authFolder);
+            for (const file of files) {
+                const filePath = path.join(this.authFolder, file);
+                fs.rmSync(filePath, { recursive: true, force: true });
+            }
             this.logger.log('Cleared old session data');
         }
-        fs.mkdirSync(this.authFolder, { recursive: true });
 
         this.phoneNumber = phone.replace(/\D/g, '');
         this.logger.log(`📱 Requesting pairing code for: ${this.phoneNumber}`);

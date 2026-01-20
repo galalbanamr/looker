@@ -12,7 +12,7 @@ export class ProfilesController {
         private discovery: DiscoveryService,
     ) { }
 
-    @Get()
+    @Get('list')
     async findAll(@Req() req: Request & { user: { userId: string } }) {
         return this.profiles.findAll(req.user.userId);
     }
@@ -22,12 +22,12 @@ export class ProfilesController {
         return this.profiles.getStats(req.user.userId);
     }
 
-    @Get(':id')
+    @Get('get/:id')
     async findOne(@Param('id') id: string, @Req() req: Request & { user: { userId: string } }) {
         return this.profiles.findOne(id, req.user.userId);
     }
 
-    @Post()
+    @Post('create')
     async create(
         @Body() body: {
             name: string;
@@ -62,7 +62,7 @@ export class ProfilesController {
         return this.profiles.update(id, req.user.userId, body);
     }
 
-    @Delete(':id')
+    @Delete('delete/:id')
     async delete(@Param('id') id: string, @Req() req: Request & { user: { userId: string } }) {
         return this.profiles.delete(id, req.user.userId);
     }

@@ -27,10 +27,11 @@ export class AuthController {
         const result = await this.otpService.verifyOtp(body.phone, body.code);
 
         if (result.success && result.token) {
+            const isProduction = process.env.NODE_ENV === 'production';
             res.cookie('token', result.token, {
                 httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'lax',
+                secure: isProduction,
+                sameSite: isProduction ? 'none' : 'lax',  // 'none' required for cross-site cookies with secure
                 path: '/',
                 maxAge: 7 * 24 * 60 * 60 * 1000,
             });

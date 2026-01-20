@@ -16,9 +16,15 @@ COPY apps/web ./apps/web
 COPY packages/shared ./packages/shared
 COPY tsconfig.json ./
 
-# Build the Next.js app
-WORKDIR /app/apps/web
+# Build the shared package
+WORKDIR /app/packages/shared
 RUN npm run build
+
+# Build the Next.js app with empty API URL (use relative paths)
+WORKDIR /app/apps/web
+ARG NEXT_PUBLIC_API_URL="RELATIVE"
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+RUN echo "Building with NEXT_PUBLIC_API_URL='${NEXT_PUBLIC_API_URL}'" && npm run build
 
 # Production stage
 FROM node:20-alpine AS runner
@@ -33,9 +39,8 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 # Copy necessary files
-COPY --from=builder /app/apps/web/public ./public
 COPY --from=builder /app/apps/web/.next/standalone ./
-COPY --from=builder /app/apps/web/.next/static ./.next/static
+COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 
 USER nextjs
 
@@ -44,4 +49,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "server.js"]
+CMD ["node", "apps/web/server.js"]

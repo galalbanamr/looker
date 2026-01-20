@@ -52,14 +52,14 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     env_file:
-      - ../.env.production
+      - ../.env
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     volumes:
-      - whatsapp_sessions:/app/whatsapp-sessions
+      - whatsapp_sessions:/app/apps/api/whatsapp-auth
     networks:
       - cm-network
 
@@ -103,8 +103,9 @@ services:
     container_name: cm-tunnel
     restart: unless-stopped
     command: tunnel run
-    environment:
-      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    volumes:
+      - ./cloudflared/config.yml:/etc/cloudflared/config.yml
+      - ./cloudflared/cred.json:/etc/cloudflared/cred.json
     networks:
       - cm-network
 

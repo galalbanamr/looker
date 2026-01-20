@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4100';
+// In production (Docker), NEXT_PUBLIC_API_URL is set to 'RELATIVE' for relative paths
+// In development, fallback to localhost:4100
+const API_URL = process.env.NEXT_PUBLIC_API_URL === 'RELATIVE' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4100');
 const ADMIN_PASSWORD = 'admin123'; // In production, use env variable
 
 interface WhatsAppStatus {
