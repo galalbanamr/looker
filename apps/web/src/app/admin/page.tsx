@@ -25,10 +25,15 @@ interface ChartData {
 }
 
 interface WhatsAppStatus {
-    connected: boolean;
+    connected?: boolean;
+    isReady?: boolean;
     phoneNumber?: string;
-    pairingCode?: string;
-    message?: string;
+    name?: string;
+    hasPairingCode?: boolean;
+    pairingCode?: string | null;
+    hasQR?: boolean;
+    qrCode?: string | null;
+    lastError?: string | null;
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL === 'RELATIVE' ? 'https://car-scan.qa/api' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001');
@@ -75,19 +80,33 @@ export default function AdminDashboard() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ phone: pairingPhone }),
+                body: JSON.stringify({ phone: pairingPhone.replace(/\D/g, '') }),
             });
             const data = await res.json();
-            if (data.pairingCode) {
-                setPairingCode(data.pairingCode);
-                setWhatsappMessage(`Pairing code: ${data.pairingCode}. Enter this in WhatsApp → Linked Devices → Link with phone number`);
+            if (data.success && data.code) {
+                setPairingCode(data.code);
+                setWhatsappStatus(prev => ({ ...prev, hasPairingCode: true, pairingCode: data.code }));
             } else {
-                setWhatsappMessage(data.message || 'Pairing request sent');
+                setWhatsappMessage(data.message || 'Failed to get pairing code');
             }
-            // Refresh status after a delay
-            setTimeout(fetchWhatsAppStatus, 5000);
         } catch (err) {
             setWhatsappMessage('Failed to request pairing code');
+        }
+        setWhatsappLoading(false);
+    };
+
+    const handleReset = async () => {
+        setWhatsappLoading(true);
+        setWhatsappMessage('');
+        try {
+            await fetch(`${API_URL}/whatsapp/disconnect`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+            setWhatsappStatus({ isReady: false, hasPairingCode: false, pairingCode: null, hasQR: false, qrCode: null, lastError: null });
+            setPairingCode('');
+        } catch (err) {
+            console.error('Failed to reset:', err);
         }
         setWhatsappLoading(false);
     };
@@ -352,96 +371,153 @@ export default function AdminDashboard() {
                             📱
                         </div>
                         <div>
-                            <h3 className="text-lg font-semibold">WhatsApp Setup</h3>
+                            <h3 className="text-lg font-semibold">WhatsApp Connection</h3>
                             <p className="text-sm text-zinc-400">Configure WhatsApp notifications</p>
                         </div>
                     </div>
-                    <div className={`px-3 py-1 rounded-full text-sm font-medium ${whatsappStatus?.connected
+                    <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${(whatsappStatus?.isReady || whatsappStatus?.connected)
                         ? 'bg-green-500/20 text-green-400'
-                        : 'bg-yellow-500/20 text-yellow-400'
+                        : 'bg-red-500/20 text-red-400'
                         }`}>
-                        {whatsappStatus?.connected ? '✓ Connected' : '○ Not Connected'}
+                        <span className={`w-2 h-2 rounded-full ${(whatsappStatus?.isReady || whatsappStatus?.connected) ? 'bg-green-400' : 'bg-red-400'}`} />
+                        {(whatsappStatus?.isReady || whatsappStatus?.connected) ? 'Connected' : 'Disconnected'}
                     </div>
                 </div>
 
-                {whatsappMessage && (
-                    <div className={`mb-4 p-3 rounded-lg text-sm ${whatsappMessage.includes('Failed') || whatsappMessage.includes('Error')
-                        ? 'bg-red-500/20 text-red-400'
-                        : 'bg-green-500/20 text-green-400'
-                        }`}>
-                        {whatsappMessage}
-                    </div>
-                )}
+                {(whatsappStatus?.isReady || whatsappStatus?.connected) ? (
+                    /* Connected State */
+                    <div className="text-center py-6">
+                        <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span className="text-4xl">✅</span>
+                        </div>
+                        <h3 className="text-2xl font-bold text-green-400 mb-2">Connected!</h3>
+                        <p className="text-zinc-400 mb-6">WhatsApp is ready to send OTPs and notifications</p>
+                        <button
+                            onClick={handleDisconnect}
+                            disabled={whatsappLoading}
+                            className="px-4 py-2 bg-red-500/20 text-red-400 rounded-xl hover:bg-red-500/30 transition-colors"
+                        >
+                            Disconnect
+                        </button>
 
-                {pairingCode && !whatsappStatus?.connected && (
-                    <div className="mb-4 p-4 bg-indigo-500/20 rounded-lg border border-indigo-500/30">
-                        <p className="text-sm text-zinc-300 mb-2">Enter this code in WhatsApp → Linked Devices → Link with phone number:</p>
-                        <p className="text-3xl font-mono font-bold text-indigo-400 tracking-widest">{pairingCode}</p>
+                        {/* Test Message Section */}
+                        <div className="mt-8 pt-6 border-t border-zinc-800">
+                            <h4 className="font-medium text-zinc-300 mb-4">Send Test Message</h4>
+                            <div className="flex gap-2 max-w-md mx-auto">
+                                <input
+                                    type="text"
+                                    placeholder="Phone number"
+                                    value={testPhone}
+                                    onChange={(e) => setTestPhone(e.target.value)}
+                                    className="flex-1 px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg focus:outline-none focus:border-indigo-500"
+                                    disabled={whatsappLoading}
+                                />
+                                <button
+                                    onClick={handleSendTestMessage}
+                                    disabled={whatsappLoading || !testPhone}
+                                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded-lg font-medium transition-colors"
+                                >
+                                    Send
+                                </button>
+                            </div>
+                            {whatsappMessage && (
+                                <p className="mt-3 text-sm text-zinc-400">{whatsappMessage}</p>
+                            )}
+                        </div>
                     </div>
-                )}
+                ) : (whatsappStatus?.hasPairingCode || pairingCode) ? (
+                    /* Pairing Code + QR Code Display */
+                    <div className="text-center py-6">
+                        <h3 className="text-xl font-bold mb-4">Connect WhatsApp</h3>
 
-                <div className="grid md:grid-cols-2 gap-6">
-                    {/* Pairing Section */}
-                    <div className="space-y-4">
-                        <h4 className="font-medium text-zinc-300">Connect WhatsApp</h4>
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                placeholder="Phone number (e.g., +1234567890)"
-                                value={pairingPhone}
-                                onChange={(e) => setPairingPhone(e.target.value)}
-                                className="flex-1 px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg focus:outline-none focus:border-indigo-500"
-                                disabled={whatsappLoading}
-                            />
+                        {/* Option 1: Pairing Code */}
+                        <div className="mb-8">
+                            <p className="text-zinc-400 mb-4">
+                                <strong className="text-white">Option 1:</strong> Enter this code in WhatsApp → Linked Devices → Link with phone number
+                            </p>
+                            <div className="bg-indigo-500/10 border-2 border-indigo-500/30 rounded-xl p-6 inline-block">
+                                <p className="text-5xl font-mono font-bold text-indigo-400 tracking-[0.3em]">
+                                    {whatsappStatus?.pairingCode || pairingCode}
+                                </p>
+                            </div>
+                            <p className="text-xs text-zinc-500 mt-2">If code doesn't work, use QR code below</p>
+                        </div>
+
+                        {/* Option 2: QR Code Fallback */}
+                        {whatsappStatus?.hasQR && whatsappStatus?.qrCode && (
+                            <div className="border-t border-zinc-800 pt-8">
+                                <p className="text-zinc-400 mb-4">
+                                    <strong className="text-white">Option 2:</strong> Scan this QR code instead
+                                </p>
+                                <div className="bg-white p-4 rounded-lg inline-block shadow-md">
+                                    <img
+                                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(whatsappStatus.qrCode)}`}
+                                        alt="WhatsApp QR Code"
+                                        className="w-48 h-48"
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Error Display */}
+                        {whatsappStatus?.lastError && (
+                            <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
+                                <strong>Error:</strong> {whatsappStatus.lastError}
+                            </div>
+                        )}
+
+                        <button
+                            onClick={handleReset}
+                            disabled={whatsappLoading}
+                            className="mt-6 px-6 py-2 bg-zinc-800 text-zinc-300 rounded-xl hover:bg-zinc-700 transition-colors"
+                        >
+                            {whatsappLoading ? '⏳ Resetting...' : '← Try Different Number'}
+                        </button>
+                    </div>
+                ) : (
+                    /* Phone Input Form */
+                    <div className="text-center py-6">
+                        <div className="w-20 h-20 bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span className="text-4xl">💬</span>
+                        </div>
+                        <h3 className="text-xl font-bold mb-2">Connect WhatsApp</h3>
+                        <p className="text-zinc-400 mb-6">Enter your WhatsApp phone number to get a pairing code</p>
+
+                        <div className="max-w-sm mx-auto space-y-4">
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-zinc-500 font-medium">
+                                    +
+                                </div>
+                                <input
+                                    type="tel"
+                                    value={pairingPhone}
+                                    onChange={(e) => setPairingPhone(e.target.value)}
+                                    placeholder="974 3300 0000"
+                                    className="pl-8 w-full px-4 py-3 rounded-xl bg-zinc-800 border border-zinc-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none text-lg"
+                                    disabled={whatsappLoading}
+                                />
+                            </div>
+
+                            {whatsappMessage && (
+                                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
+                                    {whatsappMessage}
+                                </div>
+                            )}
+
                             <button
                                 onClick={handleRequestPairing}
-                                disabled={whatsappLoading || !pairingPhone}
-                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition-colors"
+                                disabled={whatsappLoading || !pairingPhone || pairingPhone.replace(/\D/g, '').length < 10}
+                                className="w-full px-4 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
                             >
-                                {whatsappLoading ? 'Loading...' : 'Pair'}
+                                {whatsappLoading ? (
+                                    <>⏳ Getting Code...</>
+                                ) : (
+                                    <>🔑 Get Pairing Code</>
+                                )}
                             </button>
                         </div>
-                        {whatsappStatus?.connected && (
-                            <button
-                                onClick={handleDisconnect}
-                                disabled={whatsappLoading}
-                                className="w-full px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-600/30 rounded-lg font-medium transition-colors"
-                            >
-                                Disconnect WhatsApp
-                            </button>
-                        )}
                     </div>
-
-                    {/* Test Message Section */}
-                    {whatsappStatus?.connected && (
-                        <div className="space-y-4">
-                            <h4 className="font-medium text-zinc-300">Send Test Message</h4>
-                            <input
-                                type="text"
-                                placeholder="Phone number"
-                                value={testPhone}
-                                onChange={(e) => setTestPhone(e.target.value)}
-                                className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg focus:outline-none focus:border-indigo-500"
-                                disabled={whatsappLoading}
-                            />
-                            <input
-                                type="text"
-                                placeholder="Test message"
-                                value={testMessage}
-                                onChange={(e) => setTestMessage(e.target.value)}
-                                className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg focus:outline-none focus:border-indigo-500"
-                                disabled={whatsappLoading}
-                            />
-                            <button
-                                onClick={handleSendTestMessage}
-                                disabled={whatsappLoading || !testPhone || !testMessage}
-                                className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition-colors"
-                            >
-                                Send Test Message
-                            </button>
-                        </div>
-                    )}
-                </div>
+                )}
 
                 <div className="mt-4 pt-4 border-t border-zinc-800">
                     <button
