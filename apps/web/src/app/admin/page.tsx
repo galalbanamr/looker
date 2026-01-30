@@ -24,6 +24,13 @@ interface ChartData {
     count: number;
 }
 
+interface WhatsAppStatus {
+    connected: boolean;
+    phoneNumber?: string;
+    pairingCode?: string;
+    message?: string;
+}
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL === 'RELATIVE' ? 'https://car-scan.qa/api' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001');
 
 export default function AdminDashboard() {
@@ -33,9 +40,91 @@ export default function AdminDashboard() {
     const [eventsByType, setEventsByType] = useState<Array<{ type: string; count: number }>>([]);
     const [loading, setLoading] = useState(true);
 
+    // WhatsApp state
+    const [whatsappStatus, setWhatsappStatus] = useState<WhatsAppStatus | null>(null);
+    const [whatsappLoading, setWhatsappLoading] = useState(false);
+    const [pairingPhone, setPairingPhone] = useState('');
+    const [pairingCode, setPairingCode] = useState('');
+    const [testPhone, setTestPhone] = useState('');
+    const [testMessage, setTestMessage] = useState('');
+    const [whatsappMessage, setWhatsappMessage] = useState('');
+
     useEffect(() => {
         fetchDashboard();
+        fetchWhatsAppStatus();
     }, []);
+
+    const fetchWhatsAppStatus = async () => {
+        try {
+            const res = await fetch(`${API_URL}/whatsapp/status`, { credentials: 'include' });
+            if (res.ok) {
+                const data = await res.json();
+                setWhatsappStatus(data);
+            }
+        } catch (err) {
+            console.error('Failed to fetch WhatsApp status:', err);
+        }
+    };
+
+    const handleRequestPairing = async () => {
+        if (!pairingPhone) return;
+        setWhatsappLoading(true);
+        setWhatsappMessage('');
+        try {
+            const res = await fetch(`${API_URL}/whatsapp/pair`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ phone: pairingPhone }),
+            });
+            const data = await res.json();
+            if (data.pairingCode) {
+                setPairingCode(data.pairingCode);
+                setWhatsappMessage(`Pairing code: ${data.pairingCode}. Enter this in WhatsApp → Linked Devices → Link with phone number`);
+            } else {
+                setWhatsappMessage(data.message || 'Pairing request sent');
+            }
+            // Refresh status after a delay
+            setTimeout(fetchWhatsAppStatus, 5000);
+        } catch (err) {
+            setWhatsappMessage('Failed to request pairing code');
+        }
+        setWhatsappLoading(false);
+    };
+
+    const handleDisconnect = async () => {
+        setWhatsappLoading(true);
+        try {
+            await fetch(`${API_URL}/whatsapp/disconnect`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+            setWhatsappMessage('WhatsApp disconnected');
+            setPairingCode('');
+            fetchWhatsAppStatus();
+        } catch (err) {
+            setWhatsappMessage('Failed to disconnect');
+        }
+        setWhatsappLoading(false);
+    };
+
+    const handleSendTestMessage = async () => {
+        if (!testPhone || !testMessage) return;
+        setWhatsappLoading(true);
+        try {
+            const res = await fetch(`${API_URL}/whatsapp/test`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ phone: testPhone, message: testMessage }),
+            });
+            const data = await res.json();
+            setWhatsappMessage(data.success ? 'Test message sent!' : 'Failed to send test message');
+        } catch (err) {
+            setWhatsappMessage('Failed to send test message');
+        }
+        setWhatsappLoading(false);
+    };
 
     const fetchDashboard = async () => {
         try {
@@ -253,6 +342,115 @@ export default function AdminDashboard() {
                         </div>
                     </div>
                 </Link>
+            </div>
+
+            {/* WhatsApp Setup */}
+            <div className="card">
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center text-2xl">
+                            📱
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-semibold">WhatsApp Setup</h3>
+                            <p className="text-sm text-zinc-400">Configure WhatsApp notifications</p>
+                        </div>
+                    </div>
+                    <div className={`px-3 py-1 rounded-full text-sm font-medium ${whatsappStatus?.connected
+                        ? 'bg-green-500/20 text-green-400'
+                        : 'bg-yellow-500/20 text-yellow-400'
+                        }`}>
+                        {whatsappStatus?.connected ? '✓ Connected' : '○ Not Connected'}
+                    </div>
+                </div>
+
+                {whatsappMessage && (
+                    <div className={`mb-4 p-3 rounded-lg text-sm ${whatsappMessage.includes('Failed') || whatsappMessage.includes('Error')
+                        ? 'bg-red-500/20 text-red-400'
+                        : 'bg-green-500/20 text-green-400'
+                        }`}>
+                        {whatsappMessage}
+                    </div>
+                )}
+
+                {pairingCode && !whatsappStatus?.connected && (
+                    <div className="mb-4 p-4 bg-indigo-500/20 rounded-lg border border-indigo-500/30">
+                        <p className="text-sm text-zinc-300 mb-2">Enter this code in WhatsApp → Linked Devices → Link with phone number:</p>
+                        <p className="text-3xl font-mono font-bold text-indigo-400 tracking-widest">{pairingCode}</p>
+                    </div>
+                )}
+
+                <div className="grid md:grid-cols-2 gap-6">
+                    {/* Pairing Section */}
+                    <div className="space-y-4">
+                        <h4 className="font-medium text-zinc-300">Connect WhatsApp</h4>
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                placeholder="Phone number (e.g., +1234567890)"
+                                value={pairingPhone}
+                                onChange={(e) => setPairingPhone(e.target.value)}
+                                className="flex-1 px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg focus:outline-none focus:border-indigo-500"
+                                disabled={whatsappLoading}
+                            />
+                            <button
+                                onClick={handleRequestPairing}
+                                disabled={whatsappLoading || !pairingPhone}
+                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition-colors"
+                            >
+                                {whatsappLoading ? 'Loading...' : 'Pair'}
+                            </button>
+                        </div>
+                        {whatsappStatus?.connected && (
+                            <button
+                                onClick={handleDisconnect}
+                                disabled={whatsappLoading}
+                                className="w-full px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-600/30 rounded-lg font-medium transition-colors"
+                            >
+                                Disconnect WhatsApp
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Test Message Section */}
+                    {whatsappStatus?.connected && (
+                        <div className="space-y-4">
+                            <h4 className="font-medium text-zinc-300">Send Test Message</h4>
+                            <input
+                                type="text"
+                                placeholder="Phone number"
+                                value={testPhone}
+                                onChange={(e) => setTestPhone(e.target.value)}
+                                className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg focus:outline-none focus:border-indigo-500"
+                                disabled={whatsappLoading}
+                            />
+                            <input
+                                type="text"
+                                placeholder="Test message"
+                                value={testMessage}
+                                onChange={(e) => setTestMessage(e.target.value)}
+                                className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg focus:outline-none focus:border-indigo-500"
+                                disabled={whatsappLoading}
+                            />
+                            <button
+                                onClick={handleSendTestMessage}
+                                disabled={whatsappLoading || !testPhone || !testMessage}
+                                className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition-colors"
+                            >
+                                Send Test Message
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-zinc-800">
+                    <button
+                        onClick={fetchWhatsAppStatus}
+                        className="text-sm text-indigo-400 hover:text-indigo-300"
+                    >
+                        ↻ Refresh Status
+                    </button>
+                </div>
             </div>
         </div>
     );
