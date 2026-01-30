@@ -36,12 +36,13 @@ export class PerplexityService {
     /**
      * Search for competitions/events using Perplexity Search API
      */
-    async searchCompetitions(query: string, location: string = 'Qatar'): Promise<SearchResult[]> {
+    async searchCompetitions(query: string, location: string = 'Qatar', description?: string): Promise<SearchResult[]> {
         if (!this.apiKey) {
             this.logger.error('Perplexity API key not configured');
             return [];
         }
 
+        const currentDate = new Date().toISOString().split('T')[0];
         const searchQuery = `${query} competitions events ${location} 2026`;
 
         try {
@@ -56,11 +57,23 @@ export class PerplexityService {
                     messages: [
                         {
                             role: 'system',
-                            content: `You are a research assistant. Search for current and upcoming competitions, hackathons, events, grants, and opportunities. Return results as JSON array with format: [{"title": "...", "url": "...", "snippet": "...", "source": "..."}]. Focus on events specifically in or eligible for residents of ${location}. Exclude past events.`
+                            content: `You are a research assistant finding ACTIVE and UPCOMING competitions, hackathons, events, grants, and opportunities.
+
+CRITICAL REQUIREMENTS:
+- Today's date is ${currentDate}. Only include events with registration/applications STILL OPEN.
+- Exclude any events that have already ended, passed, or have closed deadlines.
+- Focus on events in or eligible for residents of: ${location}
+${description ? `- Search context: ${description}` : ''}
+
+Return results as JSON array with format: [{"title": "...", "url": "...", "snippet": "...", "source": "..."}]. 
+Only include events that are DEFINITELY still accepting applications or registrations.`
                         },
                         {
                             role: 'user',
-                            content: `Find competitions, hackathons, and events matching: "${searchQuery}". Ensure results are relevant to ${location}. Return up to 10 results with actual URLs.`
+                            content: `Find ACTIVE and UPCOMING competitions, hackathons, and events matching: "${searchQuery}". 
+IMPORTANT: Only include events that have NOT ended yet and are still accepting applications as of ${currentDate}.
+${description ? `Additional context: ${description}` : ''}
+Return up to 10 results with actual URLs.`
                         }
                     ],
                     max_tokens: 2000,

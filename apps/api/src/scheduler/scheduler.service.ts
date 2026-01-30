@@ -35,7 +35,7 @@ export class SchedulerService {
             }
 
             // Check if we should run based on frequency
-            if (!this.shouldRunNow(profile)) {
+            if (!(await this.shouldRunNow(profile))) {
                 continue;
             }
 
@@ -112,9 +112,29 @@ export class SchedulerService {
         }
     }
 
-    private shouldRunNow(profile: { frequencyPerDay: number; id: string }): boolean {
-        // For simplicity, we assume EVERY_4_HOURS covers 3x/day
-        // For higher frequencies, this can be enhanced with last run tracking
-        return profile.frequencyPerDay >= 3;
+    private async shouldRunNow(profile: { frequencyPerDay: number; id: string }): Promise<boolean> {
+        // Get the last completed search run for this profile
+        const lastRun = await this.prisma.searchRun.findFirst({
+            where: {
+                profileId: profile.id,
+                status: 'completed'
+            },
+            orderBy: { startedAt: 'desc' },
+        });
+
+        if (!lastRun) {
+            // Never run before, should run now
+            return true;
+        }
+
+        // Calculate hours since last run
+        const hoursSinceLastRun = (Date.now() - lastRun.startedAt.getTime()) / (1000 * 60 * 60);
+
+        // Calculate required interval based on frequency
+        // frequencyPerDay = 1 means run once every 24 hours
+        // frequencyPerDay = 3 means run once every 8 hours
+        const hoursPerRun = 24 / profile.frequencyPerDay;
+
+        return hoursSinceLastRun >= hoursPerRun;
     }
 }

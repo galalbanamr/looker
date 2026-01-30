@@ -6,7 +6,7 @@ import Link from 'next/link';
 
 // In production (Docker), NEXT_PUBLIC_API_URL is set to 'RELATIVE' for relative paths
 // In development, fallback to localhost:4100
-const API_URL = process.env.NEXT_PUBLIC_API_URL === 'RELATIVE' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4100');
+const API_URL = 'http://localhost:4100';
 
 interface User {
     id: string;

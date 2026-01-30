@@ -3,398 +3,257 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-// In production (Docker), NEXT_PUBLIC_API_URL is set to 'RELATIVE' for relative paths
-// In development, fallback to localhost:4100
-const API_URL = process.env.NEXT_PUBLIC_API_URL === 'RELATIVE' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4100');
-const ADMIN_PASSWORD = 'admin123'; // In production, use env variable
-
-interface WhatsAppStatus {
-    connected?: boolean;
-    isReady?: boolean;
-    phoneNumber?: string;
-    name?: string;
-    hasPairingCode?: boolean;
-    pairingCode?: string | null;
-    hasQR?: boolean;
-    qrCode?: string | null;
-    lastError?: string | null;
+interface DashboardStats {
+    totalUsers: number;
+    totalEvents: number;
+    totalTeams: number;
+    pendingEvents: number;
+    newUsersThisWeek: number;
+    newUsersThisMonth: number;
+    activeTeams: number;
 }
 
-export default function AdminPage() {
-    const [authenticated, setAuthenticated] = useState(false);
-    const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
+interface Activity {
+    type: string;
+    message: string;
+    createdAt: string;
+}
 
-    // WhatsApp state
-    const [status, setStatus] = useState<WhatsAppStatus | null>(null);
-    const [pairingPhone, setPairingPhone] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [message, setMessage] = useState('');
+interface ChartData {
+    date: string;
+    count: number;
+}
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL === 'RELATIVE' ? 'https://car-scan.qa/api' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001');
+
+export default function AdminDashboard() {
+    const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [userGrowth, setUserGrowth] = useState<ChartData[]>([]);
+    const [activities, setActivities] = useState<Activity[]>([]);
+    const [eventsByType, setEventsByType] = useState<Array<{ type: string; count: number }>>([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (authenticated) {
-            fetchStatus();
-            const interval = setInterval(fetchStatus, 3000);
-            return () => clearInterval(interval);
-        }
-    }, [authenticated]);
+        fetchDashboard();
+    }, []);
 
-    const handleLogin = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (password === ADMIN_PASSWORD) {
-            setAuthenticated(true);
-            setError('');
-        } else {
-            setError('Invalid password');
-        }
-    };
-
-    const fetchStatus = async () => {
+    const fetchDashboard = async () => {
         try {
-            const res = await fetch(`${API_URL}/whatsapp/status`);
-            const data = await res.json();
-            setStatus(data);
-        } catch (err) {
-            console.error('Failed to fetch status:', err);
-        }
-    };
-
-    const handlePair = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!pairingPhone) return;
-        setLoading(true);
-        setMessage('');
-
-        try {
-            const res = await fetch(`${API_URL}/whatsapp/pair`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: pairingPhone.replace(/\D/g, '') }),
-            });
-
-            const data = await res.json();
-
-            if (data.success && data.code) {
-                setStatus({ ...status, hasPairingCode: true, pairingCode: data.code });
-            } else {
-                setMessage(data.message || 'Failed to get pairing code');
+            const res = await fetch(`${API_URL}/admin/dashboard`, { credentials: 'include' });
+            if (res.ok) {
+                const data = await res.json();
+                setStats(data.stats);
+                setUserGrowth(data.userGrowth || []);
+                setEventsByType(data.eventsByType || []);
+                setActivities(data.recentActivity || []);
             }
-        } catch (err: any) {
-            setMessage('Failed to request pairing code');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleDisconnect = async () => {
-        if (!confirm('Are you sure you want to disconnect WhatsApp?')) return;
-
-        setLoading(true);
-        try {
-            await fetch(`${API_URL}/whatsapp/disconnect`, { method: 'POST' });
-            setStatus({ isReady: false, hasPairingCode: false, pairingCode: null });
-            setMessage('WhatsApp disconnected');
         } catch (err) {
-            setMessage('Failed to disconnect');
-        } finally {
-            setLoading(false);
+            console.error('Failed to fetch dashboard:', err);
         }
+        setLoading(false);
     };
 
-    const handleTestMessage = async () => {
-        if (!pairingPhone) {
-            setMessage('Enter a phone number first');
-            return;
-        }
-
-        setLoading(true);
-        try {
-            const res = await fetch(`${API_URL}/whatsapp/test`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: pairingPhone, message: 'Test message from Looker' }),
-            });
-            const data = await res.json();
-            setMessage(data.success ? '✅ Test message sent!' : '❌ Failed to send test message');
-        } catch (err) {
-            setMessage('Failed to send test message');
-        } finally {
-            setLoading(false);
-        }
+    const formatDate = (dateStr: string) => {
+        return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     };
 
-    const handleReset = async () => {
-        setLoading(true);
-        setMessage('');
-        try {
-            await fetch(`${API_URL}/whatsapp/disconnect`, { method: 'POST' });
-            setStatus({ isReady: false, hasPairingCode: false, pairingCode: null, hasQR: false, qrCode: null, lastError: null });
-        } catch (err) {
-            console.error('Failed to reset:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
+    const statCards = stats ? [
+        { label: 'Total Users', value: stats.totalUsers, icon: '👥', color: 'indigo' },
+        { label: 'Total Events', value: stats.totalEvents, icon: '🎯', color: 'purple' },
+        { label: 'Active Teams', value: stats.activeTeams, icon: '🤝', color: 'green' },
+        { label: 'Pending Events', value: stats.pendingEvents, icon: '⏳', color: 'yellow', alert: stats.pendingEvents > 0 },
+    ] : [];
 
-    // Login screen
-    if (!authenticated) {
+    if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-zinc-950 px-4">
-                <div className="w-full max-w-sm">
-                    <div className="text-center mb-8">
-                        <span className="text-4xl">🔐</span>
-                        <h1 className="text-2xl font-bold mt-4">Admin Panel</h1>
-                        <p className="text-zinc-400 mt-2">Looker</p>
-                    </div>
-
-                    <form onSubmit={handleLogin} className="card">
-                        {error && (
-                            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 mb-4 text-red-400 text-sm">
-                                {error}
-                            </div>
-                        )}
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium text-zinc-400 mb-2">
-                                Password
-                            </label>
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Enter admin password"
-                                className="input"
-                                autoFocus
-                            />
+            <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {[...Array(4)].map((_, i) => (
+                        <div key={i} className="card animate-pulse">
+                            <div className="h-4 bg-zinc-800 rounded w-1/2 mb-4" />
+                            <div className="h-8 bg-zinc-800 rounded w-3/4" />
                         </div>
-                        <button type="submit" className="btn-primary w-full">
-                            Login
-                        </button>
-                    </form>
-
-                    <p className="text-center text-zinc-500 text-sm mt-6">
-                        <Link href="/" className="hover:text-white">← Back to home</Link>
-                    </p>
+                    ))}
                 </div>
             </div>
         );
     }
 
-    const isConnected = status?.isReady || status?.connected;
-    const hasPairingCode = status?.hasPairingCode && status?.pairingCode;
-
-    // Admin dashboard
     return (
-        <div className="min-h-screen bg-zinc-950">
-            <header className="border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-xl">
-                <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <span className="text-2xl">⚙️</span>
-                        <h1 className="text-xl font-bold">Admin Panel</h1>
-                    </div>
-                    <button
-                        onClick={() => setAuthenticated(false)}
-                        className="text-zinc-400 hover:text-white text-sm"
-                    >
-                        Logout
-                    </button>
+        <div className="space-y-8">
+            {/* Welcome */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-2xl font-bold">Welcome back, Admin</h2>
+                    <p className="text-zinc-400">Here's what's happening with your platform</p>
                 </div>
-            </header>
+                <Link href="/admin/events" className="btn-primary">
+                    + Add Event
+                </Link>
+            </div>
 
-            <main className="max-w-4xl mx-auto px-6 py-8">
-                {/* WhatsApp Status Card */}
-                <div className="card mb-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-lg font-semibold flex items-center gap-2">
-                            <span className="text-2xl">📱</span>
-                            WhatsApp Connection
-                        </h2>
-                        <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${isConnected
-                            ? 'bg-green-500/20 text-green-400'
-                            : 'bg-red-500/20 text-red-400'
-                            }`}>
-                            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'
-                                }`} />
-                            {isConnected ? 'Connected' : 'Disconnected'}
+            {/* Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {statCards.map((stat, i) => (
+                    <div key={i} className={`card ${stat.alert ? 'border-yellow-500/50' : ''}`}>
+                        <div className="flex items-center justify-between mb-4">
+                            <span className="text-3xl">{stat.icon}</span>
+                            {stat.alert && (
+                                <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full">
+                                    Needs Review
+                                </span>
+                            )}
                         </div>
+                        <p className="text-zinc-400 text-sm mb-1">{stat.label}</p>
+                        <p className="text-3xl font-bold">{stat.value.toLocaleString()}</p>
                     </div>
+                ))}
+            </div>
 
-                    {isConnected ? (
-                        /* Connected State */
-                        <div className="text-center">
-                            <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <span className="text-4xl">✅</span>
-                            </div>
-                            <h3 className="text-2xl font-bold text-green-400 mb-2">Connected!</h3>
-                            <p className="text-zinc-400 mb-6">WhatsApp is ready to send OTPs and notifications</p>
-                            <button
-                                onClick={handleDisconnect}
-                                disabled={loading}
-                                className="px-4 py-2 bg-red-500/20 text-red-400 rounded-xl hover:bg-red-500/30 transition-colors"
-                            >
-                                Disconnect
-                            </button>
-                        </div>
-                    ) : hasPairingCode ? (
-                        /* Pairing Code + QR Code Display */
-                        <div className="text-center">
-                            <h3 className="text-xl font-bold mb-4">Connect WhatsApp</h3>
-
-                            {/* Option 1: Pairing Code */}
-                            <div className="mb-8">
-                                <p className="text-zinc-400 mb-4">
-                                    <strong className="text-white">Option 1:</strong> Enter this code in WhatsApp → Linked Devices → Link with phone number
-                                </p>
-                                <div className="bg-indigo-500/10 border-2 border-indigo-500/30 rounded-xl p-6 inline-block">
-                                    <p className="text-5xl font-mono font-bold text-indigo-400 tracking-[0.3em]">
-                                        {status.pairingCode}
-                                    </p>
-                                </div>
-                                <p className="text-xs text-zinc-500 mt-2">If code doesn't work, use QR code below</p>
-                            </div>
-
-                            {/* Option 2: QR Code Fallback */}
-                            {status?.hasQR && status?.qrCode && (
-                                <div className="border-t border-zinc-800 pt-8">
-                                    <p className="text-zinc-400 mb-4">
-                                        <strong className="text-white">Option 2:</strong> Scan this QR code instead
-                                    </p>
-                                    <div className="bg-white p-4 rounded-lg inline-block shadow-md">
-                                        <img
-                                            src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(status.qrCode)}`}
-                                            alt="WhatsApp QR Code"
-                                            className="w-48 h-48"
-                                        />
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Error Display */}
-                            {status?.lastError && (
-                                <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
-                                    <strong>Error:</strong> {status.lastError}
-                                </div>
-                            )}
-
-                            <button
-                                onClick={handleReset}
-                                disabled={loading}
-                                className="mt-6 px-6 py-2 bg-zinc-800 text-zinc-300 rounded-xl hover:bg-zinc-700 transition-colors"
-                            >
-                                {loading ? '⏳ Resetting...' : '← Try Different Number'}
-                            </button>
+            {/* Charts Row */}
+            <div className="grid lg:grid-cols-2 gap-6">
+                {/* User Growth */}
+                <div className="card">
+                    <h3 className="text-lg font-semibold mb-4">User Growth (Last 30 Days)</h3>
+                    {userGrowth.length === 0 ? (
+                        <div className="h-40 flex items-center justify-center text-zinc-500">
+                            No data available
                         </div>
                     ) : (
-                        /* Phone Input Form */
-                        <div className="text-center">
-                            <div className="w-20 h-20 bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <span className="text-4xl">💬</span>
+                        <div className="h-40 flex items-end gap-1">
+                            {userGrowth.slice(-14).map((d, i) => {
+                                const maxCount = Math.max(...userGrowth.map(x => x.count), 1);
+                                const height = (d.count / maxCount) * 100;
+                                return (
+                                    <div key={i} className="flex-1 group relative">
+                                        <div
+                                            className="bg-indigo-500/50 hover:bg-indigo-500 rounded-t transition-colors"
+                                            style={{ height: `${Math.max(height, 5)}%` }}
+                                        />
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block">
+                                            <div className="bg-zinc-800 px-2 py-1 rounded text-xs whitespace-nowrap">
+                                                {d.count} users on {d.date}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                    {stats && (
+                        <div className="flex gap-6 mt-4 pt-4 border-t border-zinc-800 text-sm">
+                            <div>
+                                <span className="text-zinc-400">This Week:</span>
+                                <span className="ml-2 font-semibold text-green-400">+{stats.newUsersThisWeek}</span>
                             </div>
-                            <h3 className="text-xl font-bold mb-2">Connect WhatsApp</h3>
-                            <p className="text-zinc-400 mb-6">Enter your WhatsApp phone number to get a pairing code</p>
-
-                            <form onSubmit={handlePair} className="max-w-sm mx-auto space-y-4">
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-zinc-500 font-medium">
-                                        +
-                                    </div>
-                                    <input
-                                        type="tel"
-                                        value={pairingPhone}
-                                        onChange={(e) => setPairingPhone(e.target.value)}
-                                        placeholder="974 3300 0000"
-                                        className="pl-8 w-full px-4 py-3 rounded-xl bg-zinc-800 border border-zinc-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none text-lg"
-                                    />
-                                </div>
-
-                                {message && (
-                                    <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
-                                        {message}
-                                    </div>
-                                )}
-
-                                <button
-                                    type="submit"
-                                    disabled={loading || !pairingPhone || pairingPhone.replace(/\D/g, '').length < 10}
-                                    className="w-full px-4 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-                                >
-                                    {loading ? (
-                                        <>⏳ Getting Code...</>
-                                    ) : (
-                                        <>🔑 Get Pairing Code</>
-                                    )}
-                                </button>
-                            </form>
+                            <div>
+                                <span className="text-zinc-400">This Month:</span>
+                                <span className="ml-2 font-semibold">+{stats.newUsersThisMonth}</span>
+                            </div>
                         </div>
                     )}
                 </div>
 
-                {/* Test Message Card */}
-                {isConnected && (
-                    <div className="card mb-6">
-                        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                            <span className="text-2xl">🧪</span>
-                            Test Message
-                        </h2>
-                        <div className="flex gap-4">
-                            <input
-                                type="tel"
-                                value={pairingPhone}
-                                onChange={(e) => setPairingPhone(e.target.value)}
-                                placeholder="+974 XXXX XXXX"
-                                className="input flex-1"
-                            />
-                            <button
-                                onClick={handleTestMessage}
-                                disabled={loading}
-                                className="btn-secondary"
-                            >
-                                Send Test
-                            </button>
+                {/* Events by Type */}
+                <div className="card">
+                    <h3 className="text-lg font-semibold mb-4">Events by Type</h3>
+                    {eventsByType.length === 0 ? (
+                        <div className="h-40 flex items-center justify-center text-zinc-500">
+                            No events yet
                         </div>
-                        {message && (
-                            <p className="mt-3 text-sm text-zinc-400">{message}</p>
-                        )}
-                    </div>
-                )}
-
-                {/* How to Link Instructions */}
-                <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-4">
-                    <div className="flex gap-3">
-                        <span className="text-xl">ℹ️</span>
-                        <div>
-                            <h4 className="font-semibold text-indigo-300">How to Link</h4>
-                            <ol className="text-sm text-indigo-200/70 list-decimal list-inside mt-2 space-y-1">
-                                <li>Enter your WhatsApp number above (with country code)</li>
-                                <li>Click "Get Pairing Code" to generate a code</li>
-                                <li>Open WhatsApp → Settings → Linked Devices</li>
-                                <li>Tap "Link a Device"</li>
-                                <li>Tap "Link with phone number instead"</li>
-                                <li>Enter the 8-digit code shown here</li>
-                            </ol>
+                    ) : (
+                        <div className="space-y-4">
+                            {eventsByType.map((e, i) => {
+                                const total = eventsByType.reduce((a, b) => a + b.count, 0);
+                                const percentage = Math.round((e.count / total) * 100);
+                                const colors = ['bg-indigo-500', 'bg-purple-500', 'bg-pink-500', 'bg-orange-500'];
+                                return (
+                                    <div key={i}>
+                                        <div className="flex justify-between text-sm mb-1">
+                                            <span className="capitalize">{e.type}</span>
+                                            <span className="text-zinc-400">{e.count} ({percentage}%)</span>
+                                        </div>
+                                        <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full ${colors[i % colors.length]} rounded-full`}
+                                                style={{ width: `${percentage}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
-                    </div>
+                    )}
                 </div>
+            </div>
 
-                {/* Warning */}
-                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 mt-4">
-                    <div className="flex gap-3">
-                        <span className="text-xl">⚠️</span>
-                        <div>
-                            <h4 className="font-semibold text-yellow-300">Important</h4>
-                            <p className="text-sm text-yellow-200/70">
-                                Use a secondary WhatsApp number. Unofficial automation may result in account restrictions.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Quick Links */}
-                <div className="mt-8 text-center">
-                    <Link href="/" className="text-zinc-400 hover:text-white text-sm">
-                        ← Back to Landing Page
+            {/* Recent Activity */}
+            <div className="card">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold">Recent Activity</h3>
+                    <Link href="/admin/logs" className="text-indigo-400 hover:underline text-sm">
+                        View All →
                     </Link>
                 </div>
-            </main>
+                {activities.length === 0 ? (
+                    <div className="py-8 text-center text-zinc-500">
+                        No recent activity
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {activities.slice(0, 8).map((activity, i) => (
+                            <div key={i} className="flex items-center gap-4 py-2">
+                                <div className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center">
+                                    {activity.type === 'user_joined' && '👤'}
+                                    {activity.type === 'event_created' && '🎯'}
+                                    {activity.type === 'team_formed' && '🤝'}
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-sm">{activity.message}</p>
+                                    <p className="text-xs text-zinc-500">{formatDate(activity.createdAt)}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Quick Actions */}
+            <div className="grid md:grid-cols-3 gap-4">
+                <Link href="/admin/events" className="card hover:border-indigo-500/50 transition-colors group">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-indigo-500/20 rounded-xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+                            🎯
+                        </div>
+                        <div>
+                            <h4 className="font-semibold">Manage Events</h4>
+                            <p className="text-sm text-zinc-400">Add, edit, or verify events</p>
+                        </div>
+                    </div>
+                </Link>
+                <Link href="/admin/users" className="card hover:border-indigo-500/50 transition-colors group">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+                            👥
+                        </div>
+                        <div>
+                            <h4 className="font-semibold">Manage Users</h4>
+                            <p className="text-sm text-zinc-400">View and manage users</p>
+                        </div>
+                    </div>
+                </Link>
+                <Link href="/admin/teams" className="card hover:border-indigo-500/50 transition-colors group">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+                            🤝
+                        </div>
+                        <div>
+                            <h4 className="font-semibold">Manage Teams</h4>
+                            <p className="text-sm text-zinc-400">View all teams</p>
+                        </div>
+                    </div>
+                </Link>
+            </div>
         </div>
     );
 }

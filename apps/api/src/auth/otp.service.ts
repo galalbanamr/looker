@@ -95,9 +95,12 @@ Do not share this code with anyone.`;
         });
 
         if (!user) {
+            const username = `user_${Date.now().toString(36)}`;
             user = await this.prisma.user.create({
                 data: {
                     phone: normalizedPhone,
+                    email: `${username}@temp.hackathon.app`,
+                    username,
                     whatsappOptIn: true,
                 },
             });

@@ -6,7 +6,7 @@ import Link from 'next/link';
 
 // In production (Docker), NEXT_PUBLIC_API_URL is set to 'RELATIVE' for relative paths
 // In development, fallback to localhost:4100
-const API_URL = process.env.NEXT_PUBLIC_API_URL === 'RELATIVE' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4100');
+const API_URL = 'http://localhost:4100';
 
 export default function AuthPage() {
     const router = useRouter();
@@ -58,7 +58,7 @@ export default function AuthPage() {
             const data = await res.json();
 
             if (data.success) {
-                router.push('/dashboard');
+                router.push('/events');
             } else {
                 setError(data.message || 'Invalid OTP');
             }

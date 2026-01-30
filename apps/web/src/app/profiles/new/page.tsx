@@ -6,7 +6,7 @@ import Link from 'next/link';
 
 // In production (Docker), NEXT_PUBLIC_API_URL is set to 'RELATIVE' for relative paths
 // In development, fallback to localhost:4100
-const API_URL = process.env.NEXT_PUBLIC_API_URL === 'RELATIVE' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4100');
+const API_URL = 'http://localhost:4100';
 
 export default function NewProfilePage() {
     const router = useRouter();
@@ -15,6 +15,7 @@ export default function NewProfilePage() {
 
     const [form, setForm] = useState({
         name: '',
+        description: '',
         keywords: [''],
         location: 'Qatar, Doha',
         frequencyPerDay: 3,
@@ -100,18 +101,35 @@ export default function NewProfilePage() {
                     {/* Profile Name */}
                     <div className="card">
                         <h2 className="text-lg font-semibold mb-4">Basic Info</h2>
-                        <div>
-                            <label className="block text-sm font-medium text-zinc-400 mb-2">
-                                Profile Name
-                            </label>
-                            <input
-                                type="text"
-                                value={form.name}
-                                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                                placeholder="e.g., Tech Hackathons"
-                                className="input"
-                                required
-                            />
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-zinc-400 mb-2">
+                                    Profile Name
+                                </label>
+                                <input
+                                    type="text"
+                                    value={form.name}
+                                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                                    placeholder="e.g., Tech Hackathons"
+                                    className="input"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-zinc-400 mb-2">
+                                    Description <span className="text-zinc-500">(optional)</span>
+                                </label>
+                                <textarea
+                                    value={form.description}
+                                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                                    placeholder="Describe what you're looking for to improve search relevance. e.g., 'Looking for AI and machine learning hackathons for university students'"
+                                    className="input min-h-[80px]"
+                                    rows={3}
+                                />
+                                <p className="mt-1 text-xs text-zinc-500">
+                                    This helps find more relevant results and only shows active/upcoming events
+                                </p>
+                            </div>
                         </div>
                     </div>
 

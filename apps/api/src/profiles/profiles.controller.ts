@@ -31,6 +31,7 @@ export class ProfilesController {
     async create(
         @Body() body: {
             name: string;
+            description?: string;
             keywords: string[];
             location?: string;
             frequencyPerDay?: number;

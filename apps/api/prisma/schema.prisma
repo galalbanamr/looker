@@ -8,33 +8,282 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ==========================================
+// USER & PROFILE MODELS
+// ==========================================
+
 model User {
   id              String    @id @default(cuid())
-  phone           String    @unique
-  name            String?
-  email           String?
+  email           String    @unique
+  passwordHash    String?
+  username        String    @unique
+  fullName        String?
+  phone           String?   @unique
   timezone        String    @default("Asia/Qatar")
   whatsappOptIn   Boolean   @default(true)
+  isEmailVerified Boolean   @default(false)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-  profiles        SearchProfile[]
-  notifications   NotificationLog[]
-  conversations   WhatsAppConversation[]
+  
+  // Relations
+  profile              UserProfile?
+  skills               UserSkill[]
+  interests            UserInterest[]
+  hackathonHistory     UserHackathonHistory[]
+  searchProfiles       SearchProfile[]
+  notifications        NotificationLog[]
+  conversations        WhatsAppConversation[]
+  teamMemberships      TeamMember[]
+  sentInvitations      TeamInvitation[] @relation("Inviter")
+  receivedInvitations  TeamInvitation[] @relation("Invitee")
+  messages             TeamMessage[]
+  createdEvents        Event[] @relation("CreatedBy")
+  adminRole            AdminUser?
+  profileViews         ProfileView[] @relation("Viewer")
+  profileViewsReceived ProfileView[] @relation("Viewed")
+  savedEvents          SavedEvent[]
 }
+
+model UserProfile {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio        String?
+  avatarUrl  String?
+  bannerUrl  String?
+  location   String?
+  website    String?
+  githubUrl  String?
+  linkedinUrl String?
+  isPublic   Boolean  @default(false)
+  updatedAt  DateTime @updatedAt
+}
+
+model UserSkill {
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill       String
+  proficiency Int      @default(3) // 1-5
+
+  @@id([userId, skill])
+}
+
+model UserInterest {
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interest String
+
+  @@id([userId, interest])
+}
+
+model UserHackathonHistory {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventName   String
+  eventDate   DateTime?
+  role        String?   // "Developer", "Designer", "PM"
+  achievement String?   // "1st Place", "Best UI"
+  projectUrl  String?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model ProfileView {
+  id        String   @id @default(cuid())
+  viewerId  String
+  viewer    User     @relation("Viewer", fields: [viewerId], references: [id], onDelete: Cascade)
+  viewedId  String
+  viewed    User     @relation("Viewed", fields: [viewedId], references: [id], onDelete: Cascade)
+  viewedAt  DateTime @default(now())
+
+  @@index([viewedId, viewedAt])
+}
+
+// ==========================================
+// EVENT MODELS
+// ==========================================
+
+model Event {
+  id                   String    @id @default(cuid())
+  title                String
+  url                  String    @unique
+  description          String?
+  startDate            DateTime?
+  endDate              DateTime?
+  registrationDeadline DateTime?
+  locationType         String    @default("virtual") // "virtual" | "in-person" | "hybrid"
+  city                 String?
+  country              String?
+  prizes               Json?     // [{amount: 5000, currency: "USD", position: "1st"}]
+  requirements         String[]
+  tags                 String[]
+  eventType            String    @default("hackathon") // "hackathon" | "conference" | "workshop" | "competition"
+  organizer            String?
+  imageUrl             String?
+  discoveredAt         DateTime  @default(now())
+  lastVerified         DateTime  @default(now())
+  isVerified           Boolean   @default(false)
+  createdById          String?
+  createdBy            User?     @relation("CreatedBy", fields: [createdById], references: [id])
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  // Relations
+  teams       Team[]
+  savedBy     SavedEvent[]
+
+  @@index([startDate, registrationDeadline])
+  @@index([eventType])
+  @@index([isVerified, startDate])
+}
+
+model SavedEvent {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  savedAt   DateTime @default(now())
+
+  @@id([userId, eventId])
+}
+
+// ==========================================
+// TEAM MODELS
+// ==========================================
+
+model Team {
+  id              String   @id @default(cuid())
+  eventId         String?
+  event           Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  name            String
+  description     String?
+  maxMembers      Int      @default(4)
+  lookingForSkills String[]
+  isPublic        Boolean  @default(true)
+  isOpen          Boolean  @default(true) // Accepting new members
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  members     TeamMember[]
+  invitations TeamInvitation[]
+  messages    TeamMessage[]
+
+  @@index([eventId])
+}
+
+model TeamMember {
+  teamId   String
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     String   @default("member") // "leader" | "member"
+  joinedAt DateTime @default(now())
+
+  @@id([teamId, userId])
+  @@index([userId])
+}
+
+model TeamInvitation {
+  id          String    @id @default(cuid())
+  teamId      String
+  team        Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  inviterId   String
+  inviter     User      @relation("Inviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  inviteeId   String
+  invitee     User      @relation("Invitee", fields: [inviteeId], references: [id], onDelete: Cascade)
+  status      String    @default("pending") // "pending" | "accepted" | "rejected"
+  message     String?
+  createdAt   DateTime  @default(now())
+  respondedAt DateTime?
+
+  @@unique([teamId, inviteeId])
+  @@index([inviteeId, status])
+}
+
+// ==========================================
+// CHAT MODELS
+// ==========================================
+
+model TeamMessage {
+  id          String    @id @default(cuid())
+  teamId      String
+  team        Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content     String
+  messageType String    @default("text") // "text" | "file" | "system"
+  fileUrl     String?
+  createdAt   DateTime  @default(now())
+  editedAt    DateTime?
+  isDeleted   Boolean   @default(false)
+
+  @@index([teamId, createdAt(sort: Desc)])
+}
+
+// ==========================================
+// ADMIN MODELS
+// ==========================================
+
+model AdminUser {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   @default("admin") // "admin" | "super_admin"
+  grantedBy String?
+  grantedAt DateTime @default(now())
+}
+
+model AdminAuditLog {
+  id           String   @id @default(cuid())
+  adminId      String
+  action       String   // "created_event", "deleted_user", etc.
+  resourceType String
+  resourceId   String?
+  changes      Json?
+  ipAddress    String?
+  createdAt    DateTime @default(now())
+
+  @@index([adminId, createdAt(sort: Desc)])
+  @@index([resourceType, resourceId])
+}
+
+// ==========================================
+// WHATSAPP NOTIFICATION PREFERENCES
+// ==========================================
+
+model WhatsAppSubscription {
+  userId          String   @id
+  phoneNumber     String
+  isActive        Boolean  @default(true)
+  frequency       String   @default("daily") // "instant" | "daily" | "weekly"
+  eventTypes      String[] // ["hackathon", "conference"]
+  tags            String[] // ["AI", "Web3"]
+  locations       String[] // ["virtual", "Qatar"]
+  verifiedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ==========================================
+// EXISTING MODELS (PRESERVED)
+// ==========================================
 
 model SearchProfile {
   id                String    @id @default(cuid())
   userId            String
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   name              String
-  keywords          String[]  // Array of search queries
+  description       String?
+  keywords          String[]
   location          String    @default("Qatar, Doha")
   frequencyPerDay   Int       @default(3)
-  quietHoursStart   Int?      // Hour (0-23) to stop notifications
-  quietHoursEnd     Int?      // Hour (0-23) to resume notifications
+  quietHoursStart   Int?
+  quietHoursEnd     Int?
   maxResultsPerRun  Int       @default(10)
-  notificationMode  String    @default("immediate") // "immediate" | "digest"
-  digestTime        String?   // "HH:MM" for daily digest
+  notificationMode  String    @default("immediate")
+  digestTime        String?
   whatsappNumber    String
   isActive          Boolean   @default(true)
   createdAt         DateTime  @default(now())
@@ -49,13 +298,13 @@ model DiscoveredItem {
   id                 String    @id @default(cuid())
   profileId          String
   profile            SearchProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  urlHash            String    // SHA256 of canonicalized URL
-  titleHash          String    // SHA256 of normalized title
+  urlHash            String
+  titleHash          String
   url                String
   title              String
-  whatItIs           String    // 1-2 line description
-  deadline           String?   // Date string or null
-  deadlineConfidence String?   // "high" | "medium" | "low"
+  whatItIs           String
+  deadline           String?
+  deadlineConfidence String?
   location           String?
   eligibility        String?
   sourceDomain       String
@@ -63,7 +312,7 @@ model DiscoveredItem {
   rawJson            Json?
   notified           Boolean   @default(false)
   notifiedAt         DateTime?
-  digestBatchId      String?   // Groups items for daily digest
+  digestBatchId      String?
   discoveredAt       DateTime  @default(now())
 
   @@unique([profileId, urlHash])
@@ -77,7 +326,7 @@ model SearchRun {
   profile      SearchProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
   startedAt    DateTime  @default(now())
   finishedAt   DateTime?
-  status       String    @default("running") // running, completed, failed
+  status       String    @default("running")
   query        String
   newItemCount Int       @default(0)
   totalResults Int       @default(0)
@@ -86,12 +335,11 @@ model SearchRun {
   @@index([profileId, startedAt])
 }
 
-// WhatsApp Conversation tracking for 24-hour window
 model WhatsAppConversation {
   id              String    @id @default(cuid())
   userId          String
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  waUserPhone     String    // E164 format
+  waUserPhone     String
   lastInboundAt   DateTime?
   lastOutboundAt  DateTime?
   createdAt       DateTime  @default(now())
@@ -101,7 +349,6 @@ model WhatsAppConversation {
   @@index([waUserPhone])
 }
 
-// Notification log for all channels
 model NotificationLog {
   id                String   @id @default(cuid())
   channel           String   @default("WHATSAPP")
@@ -110,7 +357,7 @@ model NotificationLog {
   toPhone           String
   messageType       String   @default("TEXT")
   messageBody       String?
-  status            String   @default("QUEUED") // QUEUED, SENT, DELIVERED, READ, FAILED
+  status            String   @default("QUEUED")
   providerMessageId String?
   errorJson         Json?
   createdAt         DateTime @default(now())
